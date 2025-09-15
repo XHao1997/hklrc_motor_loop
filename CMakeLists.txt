@@ -7,7 +7,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 # If you also need your motor lib:
-find_package(FTServo CONFIG REQUIRED)
+add_subdirectory(${CMAKE_SOURCE_DIR}/../hklrc_freetech_motor/FTServo_Linux-main gripper_motor_build)
+
 
 add_executable(motor_loop src/motor_loop.cpp)
 
@@ -15,7 +16,7 @@ add_executable(motor_loop src/motor_loop.cpp)
 ament_target_dependencies(motor_loop rclcpp sensor_msgs)
 
 # If you also use your motor lib in test.cpp:
-target_link_libraries(motor_loop FTServo::gripper_motor)
+target_link_libraries(motor_loop gripper::motor)
 
 install(TARGETS motor_loop DESTINATION lib/${PROJECT_NAME})
 ament_package()
