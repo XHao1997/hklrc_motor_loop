@@ -1,0 +1,10 @@
+# Request
+uint8  id             # 电机ID
+uint8  mode           # 电机模式 
+int32  position       # 目标位置(ticks, 例如 0..4095)
+int32  velocity       # 速度（库的单位，例如 ticks/s 或原生单位）
+int32  acceleration   # 加速度（同上）
+---
+# Response
+bool   ok
+string message
