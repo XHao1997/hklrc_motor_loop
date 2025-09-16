@@ -40,7 +40,7 @@ public:
     // ---- Params ----
     serial_ = this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB1");
     auto ids_param       = this->declare_parameter<std::vector<int64_t>>("ids", {1});
-    publish_rate_hz_     = this->declare_parameter<double>("publish_rate_hz", 20.0);
+    publish_rate_hz_     = this->declare_parameter<double>("publish_rate_hz", 100.0);
     topic_               = this->declare_parameter<std::string>("topic", "berry_gripper/joint_state");
 
     names_ = this->declare_parameter<std::vector<std::string>>(
