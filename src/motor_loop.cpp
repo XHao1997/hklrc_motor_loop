@@ -1,4 +1,4 @@
-// src/gripper_driver_node.cpp
+// src/gripper_driver_node.cpp  (ROS 2 Humble compatible)
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <mutex>
@@ -8,7 +8,7 @@
 #include <limits>
 #include <cmath>
 #include "gripper_motor/GripperMotor.h"
-#include "hklrc_motor_loop/srv/set_gripper_position.hpp"  // 生成后头文件路径
+#include "hklrc_motor_loop/srv/set_gripper_position.hpp"
 
 using namespace std::chrono_literals;
 using berrygripper::GripperMotor;
@@ -32,9 +32,9 @@ public:
     frame_id_    = declare_parameter<std::string>("frame_id", "");
 
     resolution_ticks_ = declare_parameter<double>("resolution_ticks", 4096.0);
-    gear_  = declare_parameter<std::vector<double>>("gear_ratio", std::vector<double>(ids_.size(), 1.0));
-    sign_  = declare_parameter<std::vector<double>>("sign",       std::vector<double>(ids_.size(), +1.0));
-    offset_= declare_parameter<std::vector<double>>("offset_rad", std::vector<double>(ids_.size(),  0.0));
+    gear_   = declare_parameter<std::vector<double>>("gear_ratio",   std::vector<double>(ids_.size(), 1.0));
+    sign_   = declare_parameter<std::vector<double>>("sign",         std::vector<double>(ids_.size(), +1.0));
+    offset_ = declare_parameter<std::vector<double>>("offset_rad",   std::vector<double>(ids_.size(),  0.0));
 
     // ---- 打开串口 ----
     if (!motor_.open(port_, baud_)) {
@@ -42,6 +42,9 @@ public:
       throw std::runtime_error("serial open failed");
     }
     RCLCPP_INFO(get_logger(), "Opened %s @ %d", port_.c_str(), baud_);
+
+    // ---- CallbackGroup：互斥 ---- (Humble 里依然可用)
+    cg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     // ---- JointState 发布器 ----
     js_pub_ = create_publisher<sensor_msgs::msg::JointState>(js_topic_, rclcpp::SensorDataQoS());
@@ -52,15 +55,20 @@ public:
 
     // ---- 定时器读取位置/速度并发布 ----
     auto period = std::chrono::duration<double>(1.0 / std::max(1.0, pub_rate_hz_));
-    timer_ = create_wall_timer(
+    // Humble：把 callback_group 作为 create_wall_timer 的最后一个参数传入
+    timer_ = this->create_wall_timer(
       std::chrono::duration_cast<std::chrono::milliseconds>(period),
-      std::bind(&GripperDriverNode::on_timer, this));
+      std::bind(&GripperDriverNode::on_timer, this),
+      cg_);
 
     // ---- Service：设置目标位置 ----
-    srv_ = create_service<hklrc_motor_loop::srv::SetGripperPosition>(
+    // Humble：create_service(… , qos_profile, callback_group)
+    srv_ = this->create_service<hklrc_motor_loop::srv::SetGripperPosition>(
       "set_gripper_position",
       std::bind(&GripperDriverNode::on_set_pos, this,
-                std::placeholders::_1, std::placeholders::_2));
+                std::placeholders::_1, std::placeholders::_2),
+      rmw_qos_profile_services_default,
+      cg_);
   }
 
   ~GripperDriverNode() override {
@@ -82,8 +90,7 @@ private:
   void on_timer(){
     std::map<uint8_t, berrygripper::Feedback> out;
     {
-      // 串口半双工时，读写需互斥
-      std::lock_guard<std::mutex> lk(io_mtx_);
+      // std::lock_guard<std::mutex> lk(io_mtx_);
       if (!motor_.readPosSpeed(ids_, out)) {
         RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000, "readPosSpeed failed");
         return;
@@ -112,10 +119,10 @@ private:
       std::shared_ptr<hklrc_motor_loop::srv::SetGripperPosition::Response> resp)
   {
     try {
-      std::lock_guard<std::mutex> lk(io_mtx_);  // 保护与读操作的互斥
+      // std::lock_guard<std::mutex> lk(io_mtx_);
       motor_.writePos(static_cast<uint8_t>(req->id),
                       req->position, req->velocity, req->acceleration,
-                      WriteOptions{WaitMode::None});
+                      WriteOptions{WaitMode::None});  // 或 ByTime/ByReply 视协议而定
       resp->ok = true;
       resp->message = "command sent";
     } catch (const std::exception& e) {
@@ -140,16 +147,16 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   sensor_msgs::msg::JointState js_msg_;
   rclcpp::Service<hklrc_motor_loop::srv::SetGripperPosition>::SharedPtr srv_;
+  rclcpp::CallbackGroup::SharedPtr cg_;  // 互斥回调组（Humble可用）
 
   // device
   GripperMotor motor_;
-  std::mutex io_mtx_;  // 保护读写
-
+  std::mutex io_mtx_;  // 保护读写（半双工安全）
 };
 
 int main(int argc, char** argv){
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<GripperDriverNode>());
+  rclcpp::spin(std::make_shared<GripperDriverNode>());  // 单线程即可
   rclcpp::shutdown();
   return 0;
 }
