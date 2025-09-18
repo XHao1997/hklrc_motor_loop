@@ -1,0 +1,7 @@
+# params.yaml
+berry_gripper_motor_config:
+  ros__parameters:
+    serial_port: "/dev/ttyUSB3"
+    max_torque: 1
+    close_pos: 2800
+    open_pos: 2000

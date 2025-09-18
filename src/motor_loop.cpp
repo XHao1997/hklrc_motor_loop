@@ -9,7 +9,6 @@
 #include <cmath>
 #include "gripper_motor/GripperMotor.h"
 #include "hklrc_motor_loop/srv/set_gripper_position.hpp"
-
 using namespace std::chrono_literals;
 using berrygripper::GripperMotor;
 using berrygripper::WriteOptions;
@@ -20,7 +19,8 @@ public:
   GripperDriverNode() : Node("gripper_driver_node")
   {
     // ---- 参数 ----
-    port_  = declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
+    
+    port_  = declare_parameter<std::string>("serial_port", "/dev/ttyUSB3");
     baud_  = declare_parameter<int>("baud", 1'000'000);
 
     ids_param_ = declare_parameter<std::vector<int64_t>>("ids", {1});
@@ -35,14 +35,19 @@ public:
     gear_   = declare_parameter<std::vector<double>>("gear_ratio",   std::vector<double>(ids_.size(), 1.0));
     sign_   = declare_parameter<std::vector<double>>("sign",         std::vector<double>(ids_.size(), +1.0));
     offset_ = declare_parameter<std::vector<double>>("offset_rad",   std::vector<double>(ids_.size(),  0.0));
-
+    max_torque_ = declare_parameter<double>("max_torque", 1.0);  // 0~1.0
+    close_pos_  = declare_parameter<int>("close_pos", 2800);
+    open_pos_   = declare_parameter<int>("open_pos",  2000);
     // ---- 打开串口 ----
     if (!motor_.open(port_, baud_)) {
       RCLCPP_FATAL(get_logger(), "Failed to open %s @ %d", port_.c_str(), baud_);
       throw std::runtime_error("serial open failed");
     }
     RCLCPP_INFO(get_logger(), "Opened %s @ %d", port_.c_str(), baud_);
-
+    for (auto id : ids_){ 
+      motor_.switchTorque(id, true);  // 上电
+      motor_.setLimitTorque(id, max_torque_);}
+    RCLCPP_INFO(get_logger(), "Set torque limit to 10%% for IDs");
     // ---- CallbackGroup：互斥 ---- (Humble 里依然可用)
     cg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
@@ -119,6 +124,7 @@ private:
       std::shared_ptr<hklrc_motor_loop::srv::SetGripperPosition::Response> resp)
   {
     try {
+      motor_.setMode(static_cast<uint8_t>(req->id), req->mode);  // 0:伺服模式, 1:轮式模式
       // std::lock_guard<std::mutex> lk(io_mtx_);
       motor_.writePos(static_cast<uint8_t>(req->id),
                       req->position, req->velocity, req->acceleration,
@@ -134,7 +140,7 @@ private:
 private:
   // params
   std::string port_;
-  int baud_;
+  int baud_, max_torque_, close_pos_, open_pos_;
   std::vector<int64_t> ids_param_;
   std::vector<uint8_t> ids_;
   double pub_rate_hz_;
