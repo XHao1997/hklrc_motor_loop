@@ -18,11 +18,8 @@ class GripperDriverNode : public rclcpp::Node {
 public:
   GripperDriverNode() : Node("gripper_driver_node")
   {
-    // ---- 参数 ----
-    
-    port_  = declare_parameter<std::string>("serial_port", "/dev/ttyUSB3");
     baud_  = declare_parameter<int>("baud", 1'000'000);
-
+    port_  = declare_parameter<std::string>("serial_port", "/dev/ttyUSB3");
     ids_param_ = declare_parameter<std::vector<int64_t>>("ids", {1});
     ids_.reserve(ids_param_.size());
     for (auto v : ids_param_) ids_.push_back(static_cast<uint8_t>(v));
@@ -35,7 +32,7 @@ public:
     gear_   = declare_parameter<std::vector<double>>("gear_ratio",   std::vector<double>(ids_.size(), 1.0));
     sign_   = declare_parameter<std::vector<double>>("sign",         std::vector<double>(ids_.size(), +1.0));
     offset_ = declare_parameter<std::vector<double>>("offset_rad",   std::vector<double>(ids_.size(),  0.0));
-    max_torque_ = declare_parameter<double>("max_torque", 1.0);  // 0~1.0
+    max_torque_ = declare_parameter<unsigned short>("max_torque", 1000);  // 0~1000
     close_pos_  = declare_parameter<int>("close_pos", 2800);
     open_pos_   = declare_parameter<int>("open_pos",  2000);
     // ---- 打开串口 ----

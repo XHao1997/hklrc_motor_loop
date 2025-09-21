@@ -1,0 +1,5 @@
+<library path="berry_gripper_system">
+  <class name="berrygripper_hw/GripperSystem"
+         type="berrygripper_hw::GripperSystem"
+         base_class_type="hardware_interface::SystemInterface"/>
+</library>
